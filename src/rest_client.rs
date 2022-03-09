@@ -43,7 +43,23 @@ impl Client {
         }
     }
 
-    
+    pub async fn get<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        request: Option<String>,
+    ) -> Result<T> {
+        let mut url: String = format!("{}{}", self.host, endpoint);
+        if let Some(request) = request {
+            if !request.is_empty() {
+                url.push_str(format!("?{}", request).as_str());
+            }
+        }
+
+        let client = &self.inner_client;
+        let response = client.get(url.as_str()).send().await?;
+
+        self.handler(response).await
+    }
 }
 
 #[derive(Debug, Deserialize)]
