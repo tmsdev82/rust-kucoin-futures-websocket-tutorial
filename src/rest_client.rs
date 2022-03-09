@@ -60,6 +60,27 @@ impl Client {
 
         self.handler(response).await
     }
+
+    fn build_headers(&self) -> Result<HeaderMap> {
+        let mut custom_headers = HeaderMap::new();
+
+        custom_headers.insert(USER_AGENT, HeaderValue::from_static("crypto-connector"));
+
+        Ok(custom_headers)
+    }
+
+    pub async fn post<T: DeserializeOwned>(&self, endpoint: &str) -> Result<T> {
+        let url: String = format!("{}{}", self.host, endpoint);
+
+        let client = &self.inner_client;
+        let response = client
+            .post(url.as_str())
+            .headers(self.build_headers()?)
+            .send()
+            .await?;
+
+        self.handler(response).await
+    }
 }
 
 #[derive(Debug, Deserialize)]
