@@ -2,6 +2,8 @@ use log::{info};
 use log4rs;
 
 mod rest_client;
+mod futures_rest_client;
+mod models;
 
 #[tokio::main]
 async fn main() {
