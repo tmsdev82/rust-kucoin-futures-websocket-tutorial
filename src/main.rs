@@ -4,6 +4,7 @@ use log4rs;
 mod rest_client;
 mod futures_rest_client;
 mod models;
+mod websocket;
 
 #[tokio::main]
 async fn main() {
