@@ -52,9 +52,24 @@ impl FuturesWebSockets {
             }
         };
         info!("Connected!");
-        
+
         info!("Start event loop...");
-        while running.load(Ordering::Relaxed) {}
+        while running.load(Ordering::Relaxed) {
+            let message = match socket.0.read_message() {
+                Ok(msg) => msg,
+                Err(err) => {
+                    error!("Error: {}", err);
+                    info!("[{}] Reconnecting WebSocket due to error.", &self.exchange);
+                    socket = match self.connect().await {
+                        Ok(socket) => socket,
+                        Err(error) => {
+                            bail!("error: {}", error)
+                        }
+                    };
+                    continue;
+                }
+            };
+        }
 
         Ok(())
     }
