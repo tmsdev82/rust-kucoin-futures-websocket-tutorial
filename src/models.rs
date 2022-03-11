@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -45,4 +45,35 @@ pub struct OpenContractData {
 pub struct OpenContracts {
     pub code: Option<String>,
     pub data: Vec<OpenContractData>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GenericMessage {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub msg_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscribeMessage {
+    pub id: u64,
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    pub topic: String,
+    pub private_channel: bool,
+    pub response: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolTicker {
+    pub sequence: u64,
+    pub symbol: String,
+    pub best_bid_price: String,
+    pub best_bid_size: u64,
+    pub best_ask_price: String,
+    pub best_ask_size: u64,
+    pub ts: u64,
 }
