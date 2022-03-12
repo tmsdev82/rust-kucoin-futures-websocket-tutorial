@@ -152,24 +152,36 @@ impl FuturesWebSockets {
 
         let mut topics_clone = self.topics.clone();
         let mut current_topic = topics_clone.pop();
+        let mut unique_id: u64 = 0;
         while let Some(topic) = current_topic.clone() {
             for symbol in &symbols {
                 if socket.can_write() {
                     let subscribe_topic = format!("{}{}", topic, symbol);
                     info!(
-                        "[{}] Subscribing to topic with symbol: {}", &self.exchange,
-                        &subscribe_topic
+                        "[{}] Subscribing to topic with symbol: {}",
+                        &self.exchange, &subscribe_topic
                     );
+                    unique_id += 1;
                     let msg = models::SubscribeMessage {
-                        id: 1,
+                        id: unique_id,
                         msg_type: "subscribe".to_string(),
                         topic: subscribe_topic,
                         private_channel: false,
-                        response: true,
+                        response: false,
                     };
                     let json = serde_json::to_string(&msg).unwrap();
                     let message = Message::Text(json);
-                    socket.write_message(message).unwrap();
+                    match socket.write_message(message) {
+                        Ok(_) => {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            continue;
+                        }
+                        Err(e) => {
+                            error!("Error occurred for symbol: {}", symbol);
+                            error!("Error: {}", e);
+                            continue;
+                        }
+                    }
                 } else {
                     error!("Cannot write to socket.");
                 }
