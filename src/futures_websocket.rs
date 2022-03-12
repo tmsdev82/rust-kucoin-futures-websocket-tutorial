@@ -140,6 +140,7 @@ impl FuturesWebSockets {
 
     async fn handle_symbol_ticker_event(&self, data: models::SymbolTicker) -> Result<()> {
         info!("[{}] {:?}", self.exchange, data);
+        // add your own logic here
         Ok(())
     }
 
