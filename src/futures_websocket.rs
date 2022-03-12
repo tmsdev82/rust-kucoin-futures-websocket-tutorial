@@ -138,6 +138,11 @@ impl FuturesWebSockets {
         Ok(())
     }
 
+    async fn handle_symbol_ticker_event(&self, data: models::SymbolTicker) -> Result<()> {
+        info!("[{}] {:?}", self.exchange, data);
+        Ok(())
+    }
+
     async fn subscribe_to_topics(&self, socket: &mut WebSocket<MaybeTlsStream<TcpStream>>) {
         let symbols: Vec<String> = match &self.subscribe_symbols {
             SubscribeSymbols::All => self.client.get_available_symbols().await.unwrap(),
