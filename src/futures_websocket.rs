@@ -8,6 +8,14 @@ use tungstenite::handshake::client::Response;
 use tungstenite::protocol::WebSocket;
 use tungstenite::{stream::MaybeTlsStream, Message};
 
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum FuturesEvents {
+    BookTickerEvent(models::SymbolTicker),
+    GenericMessageEvent(models::GenericMessage), // KuCoin sends generic message of this form
+    Unknown,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum SubscribeSymbols {
@@ -69,9 +77,99 @@ impl FuturesWebSockets {
                     continue;
                 }
             };
+            match message {
+                Message::Text(msg) => {
+                    if let Err(e) = self.handle_msg(&msg, &mut socket.0).await {
+                        error!("Error on handling stream message: {}", e);
+                        continue;
+                    }
+                }
+                // We can ignore these message because tungstenite takes care of them for us.
+                Message::Ping(_) | Message::Pong(_) | Message::Binary(_) => (),
+                Message::Close(e) => {
+                    error!("Disconnected {:?}", e);
+                    continue;
+                }
+            }
+        }
+        socket.0.close(None)?;
+        Ok(())
+    }
+
+    async fn handle_msg(
+        &mut self,
+        msg: &str,
+        socket: &mut WebSocket<MaybeTlsStream<TcpStream>>,
+    ) -> Result<()> {
+        let mut value: serde_json::Value = serde_json::from_str(msg)?;
+
+        loop {
+            value = match value.get("data") {
+                Some(data) => serde_json::from_str(&data.to_string())?,
+                None => break,
+            };
         }
 
+        if let Ok(events) = serde_json::from_value::<FuturesEvents>(value) {
+            match events {
+                FuturesEvents::BookTickerEvent(v) => {
+                    return self.handle_symbol_ticker_event(v).await;
+                }
+                FuturesEvents::GenericMessageEvent(v) => match v.msg_type.as_str() {
+                    "welcome" => {
+                        info!("Welcome message received, Subscribing to bookticker...");
+                        self.subscribe_to_topics(socket).await;
+                    }
+                    _ => {
+                        info!("Generic message received: {}", &v.msg_type);
+                    }
+                },
+                _ => {
+                    info!(
+                        "Generic event conversion not yet implemented for: FuturesEvents::{:?}",
+                        events
+                    );
+                    return Ok(());
+                }
+            };
+        } else {
+            error!("Unknown message {}", msg);
+        }
         Ok(())
+    }
+
+    async fn subscribe_to_topics(&self, socket: &mut WebSocket<MaybeTlsStream<TcpStream>>) {
+        let symbols: Vec<String> = match &self.subscribe_symbols {
+            SubscribeSymbols::All => self.client.get_available_symbols().await.unwrap(),
+            SubscribeSymbols::Custom(symbols) => symbols.clone(),
+        };
+
+        let mut topics_clone = self.topics.clone();
+        let mut current_topic = topics_clone.pop();
+        while let Some(topic) = current_topic.clone() {
+            for symbol in &symbols {
+                if socket.can_write() {
+                    let subscribe_topic = format!("{}{}", topic, symbol);
+                    info!(
+                        "[{}] Subscribing to topic with symbol: {}", &self.exchange,
+                        &subscribe_topic
+                    );
+                    let msg = models::SubscribeMessage {
+                        id: 1,
+                        msg_type: "subscribe".to_string(),
+                        topic: subscribe_topic,
+                        private_channel: false,
+                        response: true,
+                    };
+                    let json = serde_json::to_string(&msg).unwrap();
+                    let message = Message::Text(json);
+                    socket.write_message(message).unwrap();
+                } else {
+                    error!("Cannot write to socket.");
+                }
+            }
+            current_topic = topics_clone.pop();
+        }
     }
 
     async fn connect(&mut self) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
